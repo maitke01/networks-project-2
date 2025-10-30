@@ -22,7 +22,6 @@ class TCPClient {
         DataOutputStream outToServer = new DataOutputStream(clientSocket.getOutputStream());
         BufferedReader inFromServer = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
 
-        // Login - read prompts character by character since they don't end with newline
         System.out.print(readPrompt(inFromServer));
         System.out.flush();
         String username = inFromUser.readLine();
@@ -41,7 +40,6 @@ class TCPClient {
             return;
         }
 
-        // Wait for second client message (blocking read)
         String secondClientMsg = inFromServer.readLine();
         if(secondClientMsg != null) {
             System.out.println(secondClientMsg);
@@ -49,7 +47,6 @@ class TCPClient {
 
         System.out.println("Type messages to chat. Type 'FILE:filename' to send a file.");
 
-        // Thread to read messages from server
         Thread serverListener = new Thread(() -> {
             try {
                 while(isRunning) {
@@ -87,7 +84,6 @@ class TCPClient {
             }
         });
 
-        // Thread to read user input
         Thread userInputHandler = new Thread(() -> {
             try {
                 while(isRunning) {
@@ -124,11 +120,9 @@ class TCPClient {
             }
         });
 
-        // Start both threads
         serverListener.start();
         userInputHandler.start();
 
-        // Wait for both threads to finish
         serverListener.join();
         userInputHandler.join();
 

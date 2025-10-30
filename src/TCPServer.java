@@ -6,12 +6,10 @@ class TCPServer {
         ServerSocket welcomeSocket = new ServerSocket(6789);
         System.out.println("Server started. Waiting for clients...");
 
-        // Accept first client
         Socket client1Socket = welcomeSocket.accept();
         BufferedReader inFromClient1 = new BufferedReader(new InputStreamReader(client1Socket.getInputStream()));
         DataOutputStream outToClient1 = new DataOutputStream(client1Socket.getOutputStream());
 
-        // Authenticate client 1
         outToClient1.writeBytes("Username: ");
         outToClient1.flush();
         String user1 = inFromClient1.readLine();
@@ -29,12 +27,10 @@ class TCPServer {
         outToClient1.flush();
         System.out.println(user1 + " logged in (online)");
 
-        // Accept second client
         Socket client2Socket = welcomeSocket.accept();
         BufferedReader inFromClient2 = new BufferedReader(new InputStreamReader(client2Socket.getInputStream()));
         DataOutputStream outToClient2 = new DataOutputStream(client2Socket.getOutputStream());
 
-        // Authenticate client 2
         outToClient2.writeBytes("Username: ");
         outToClient2.flush();
         String user2 = inFromClient2.readLine();
@@ -55,7 +51,6 @@ class TCPServer {
         System.out.println(user2 + " logged in (online)");
         System.out.println("Both clients online: " + user1 + ", " + user2);
 
-        // Thread to relay messages from client 1 to client 2
         Thread client1Listener = new Thread(() -> {
             try {
                 while(true) {
@@ -87,7 +82,6 @@ class TCPServer {
             }
         });
 
-        // Thread to relay messages from client 2 to client 1
         Thread client2Listener = new Thread(() -> {
             try {
                 while(true) {
@@ -119,11 +113,9 @@ class TCPServer {
             }
         });
 
-        // Start both listener threads
         client1Listener.start();
         client2Listener.start();
 
-        // Wait for both to finish
         client1Listener.join();
         client2Listener.join();
 
