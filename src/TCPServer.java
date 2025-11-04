@@ -1,127 +1,262 @@
 import java.io.*;
 import java.net.*;
+
 class TCPServer {
-    public static void main(String argv[]) throws Exception
-    {
+    private static volatile Socket client1Socket = null;
+    private static volatile Socket client2Socket = null;
+    private static volatile BufferedReader inFromClient1 = null;
+    private static volatile BufferedReader inFromClient2 = null;
+    private static volatile DataOutputStream outToClient1 = null;
+    private static volatile DataOutputStream outToClient2 = null;
+    private static final Object client1Lock = new Object();
+    private static final Object client2Lock = new Object();
+
+    public static void main(String argv[]) throws Exception {
         ServerSocket welcomeSocket = new ServerSocket(6789);
         System.out.println("Server started. Waiting for clients...");
 
-        Socket client1Socket = welcomeSocket.accept();
-        BufferedReader inFromClient1 = new BufferedReader(new InputStreamReader(client1Socket.getInputStream()));
-        DataOutputStream outToClient1 = new DataOutputStream(client1Socket.getOutputStream());
+        // Thread to handle client1 (alice)
+        Thread client1Handler = new Thread(() -> handleClient1());
+        client1Handler.start();
 
-        outToClient1.writeBytes("Username: ");
-        outToClient1.flush();
-        String user1 = inFromClient1.readLine();
-        outToClient1.writeBytes("Password: ");
-        outToClient1.flush();
-        String pass1 = inFromClient1.readLine();
+        // Thread to handle client2 (bob)
+        Thread client2Handler = new Thread(() -> handleClient2());
+        client2Handler.start();
 
-        if(!user1.equals("alice") || !pass1.equals("pass1")) {
-            outToClient1.writeBytes("Login failed\n");
-            outToClient1.flush();
-            client1Socket.close();
-            return;
-        }
-        outToClient1.writeBytes("Login successful! Waiting for second client...\n");
-        outToClient1.flush();
-        System.out.println(user1 + " logged in (online)");
+        // Main loop to accept connections
+        while(true) {
+            Socket newSocket = welcomeSocket.accept();
+            BufferedReader inFromNew = new BufferedReader(new InputStreamReader(newSocket.getInputStream()));
+            DataOutputStream outToNew = new DataOutputStream(newSocket.getOutputStream());
 
-        Socket client2Socket = welcomeSocket.accept();
-        BufferedReader inFromClient2 = new BufferedReader(new InputStreamReader(client2Socket.getInputStream()));
-        DataOutputStream outToClient2 = new DataOutputStream(client2Socket.getOutputStream());
+            outToNew.writeBytes("Username: ");
+            outToNew.flush();
+            String username = inFromNew.readLine();
+            outToNew.writeBytes("Password: ");
+            outToNew.flush();
+            String password = inFromNew.readLine();
 
-        outToClient2.writeBytes("Username: ");
-        outToClient2.flush();
-        String user2 = inFromClient2.readLine();
-        outToClient2.writeBytes("Password: ");
-        outToClient2.flush();
-        String pass2 = inFromClient2.readLine();
+            if(username.equals("alice") && password.equals("pass1")) {
+                synchronized(client1Lock) {
+                    if(client1Socket != null) {
+                        try { client1Socket.close(); } catch(IOException e) {}
+                    }
+                    client1Socket = newSocket;
+                    inFromClient1 = inFromNew;
+                    outToClient1 = outToNew;
+                    outToClient1.writeBytes("Login successful!\n");
+                    outToClient1.flush();
+                    System.out.println("alice logged in (online)");
 
-        if(!user2.equals("bob") || !pass2.equals("pass2")) {
-            outToClient2.writeBytes("Login failed\n");
-            outToClient2.flush();
-            client2Socket.close();
-            return;
-        }
-        outToClient2.writeBytes("Login successful! Both clients connected.\n");
-        outToClient2.flush();
-        outToClient1.writeBytes("Second client connected! You can chat now.\n");
-        outToClient1.flush();
-        System.out.println(user2 + " logged in (online)");
-        System.out.println("Both clients online: " + user1 + ", " + user2);
-
-        Thread client1Listener = new Thread(() -> {
-            try {
-                while(true) {
-                    String msg1 = inFromClient1.readLine();
-                    if(msg1 == null) break;
-
-                    if(msg1.startsWith("FILE:")) {
-                        String[] parts = msg1.split(":");
-                        String filename = parts[1];
-                        int filesize = Integer.parseInt(parts[2]);
-                        outToClient2.writeBytes("FILE:" + filename + ":" + filesize + "\n");
-                        outToClient2.flush();
-                        byte[] buffer = new byte[4096];
-                        int read, total = 0;
-                        while(total < filesize) {
-                            read = client1Socket.getInputStream().read(buffer, 0, Math.min(buffer.length, filesize - total));
-                            if(read == -1) break;
-                            client2Socket.getOutputStream().write(buffer, 0, read);
-                            total += read;
+                    synchronized(client2Lock) {
+                        if(client2Socket != null && outToClient2 != null) {
+                            try {
+                                outToClient2.writeBytes("alice reconnected.\n");
+                                outToClient2.flush();
+                            } catch(IOException e) {}
                         }
-                        System.out.println("File transferred: " + filename);
-                    } else {
-                        outToClient2.writeBytes("[" + user1 + "]: " + msg1 + "\n");
-                        outToClient2.flush();
                     }
                 }
-            } catch (IOException e) {
-                System.out.println("Client 1 disconnected");
-            }
-        });
+            } else if(username.equals("bob") && password.equals("pass2")) {
+                synchronized(client2Lock) {
+                    if(client2Socket != null) {
+                        try { client2Socket.close(); } catch(IOException e) {}
+                    }
+                    client2Socket = newSocket;
+                    inFromClient2 = inFromNew;
+                    outToClient2 = outToNew;
+                    outToClient2.writeBytes("Login successful!\n");
+                    outToClient2.flush();
+                    System.out.println("bob logged in (online)");
 
-        Thread client2Listener = new Thread(() -> {
-            try {
-                while(true) {
-                    String msg2 = inFromClient2.readLine();
-                    if(msg2 == null) break;
-
-                    if(msg2.startsWith("FILE:")) {
-                        String[] parts = msg2.split(":");
-                        String filename = parts[1];
-                        int filesize = Integer.parseInt(parts[2]);
-                        outToClient1.writeBytes("FILE:" + filename + ":" + filesize + "\n");
-                        outToClient1.flush();
-                        byte[] buffer = new byte[4096];
-                        int read, total = 0;
-                        while(total < filesize) {
-                            read = client2Socket.getInputStream().read(buffer, 0, Math.min(buffer.length, filesize - total));
-                            if(read == -1) break;
-                            client1Socket.getOutputStream().write(buffer, 0, read);
-                            total += read;
+                    synchronized(client1Lock) {
+                        if(client1Socket != null && outToClient1 != null) {
+                            try {
+                                outToClient1.writeBytes("bob reconnected.\n");
+                                outToClient1.flush();
+                            } catch(IOException e) {}
                         }
-                        System.out.println("File transferred: " + filename);
-                    } else {
-                        outToClient1.writeBytes("[" + user2 + "]: " + msg2 + "\n");
-                        outToClient1.flush();
                     }
                 }
-            } catch (IOException e) {
-                System.out.println("Client 2 disconnected");
+            } else {
+                outToNew.writeBytes("Login failed\n");
+                outToNew.flush();
+                newSocket.close();
             }
-        });
+        }
+    }
 
-        client1Listener.start();
-        client2Listener.start();
+    private static void handleClient1() {
+        while(true) {
+            try {
+                Socket socket;
+                BufferedReader reader;
+                synchronized(client1Lock) {
+                    socket = client1Socket;
+                    reader = inFromClient1;
+                }
 
-        client1Listener.join();
-        client2Listener.join();
+                if(socket == null || reader == null) {
+                    Thread.sleep(100);
+                    continue;
+                }
 
-        client1Socket.close();
-        client2Socket.close();
-        welcomeSocket.close();
-        System.out.println("Server shutting down");
+                String msg = reader.readLine();
+                if(msg == null) {
+                    System.out.println("alice disconnected (offline)");
+                    synchronized(client1Lock) {
+                        try { if(client1Socket != null) client1Socket.close(); } catch(IOException e) {}
+                        client1Socket = null;
+                        inFromClient1 = null;
+                        outToClient1 = null;
+                    }
+                    synchronized(client2Lock) {
+                        if(outToClient2 != null) {
+                            try {
+                                outToClient2.writeBytes("alice disconnected.\n");
+                                outToClient2.flush();
+                            } catch(IOException e) {}
+                        }
+                    }
+                    continue;
+                }
+
+                if(msg.startsWith("FILE:")) {
+                    String[] parts = msg.split(":");
+                    String filename = parts[1];
+                    int filesize = Integer.parseInt(parts[2]);
+
+                    synchronized(client2Lock) {
+                        if(outToClient2 != null && client2Socket != null) {
+                            outToClient2.writeBytes("FILE:" + filename + ":" + filesize + "\n");
+                            outToClient2.flush();
+
+                            byte[] buffer = new byte[4096];
+                            int read, total = 0;
+                            while(total < filesize) {
+                                read = socket.getInputStream().read(buffer, 0, Math.min(buffer.length, filesize - total));
+                                if(read == -1) break;
+                                client2Socket.getOutputStream().write(buffer, 0, read);
+                                total += read;
+                            }
+                            client2Socket.getOutputStream().flush();
+                            System.out.println("File transferred: " + filename);
+                        }
+                    }
+                } else {
+                    synchronized(client2Lock) {
+                        if(outToClient2 != null) {
+                            outToClient2.writeBytes("[alice]: " + msg + "\n");
+                            outToClient2.flush();
+                        }
+                    }
+                }
+            } catch(IOException e) {
+                System.out.println("alice disconnected (offline)");
+                synchronized(client1Lock) {
+                    try { if(client1Socket != null) client1Socket.close(); } catch(IOException ex) {}
+                    client1Socket = null;
+                    inFromClient1 = null;
+                    outToClient1 = null;
+                }
+                synchronized(client2Lock) {
+                    if(outToClient2 != null) {
+                        try {
+                            outToClient2.writeBytes("alice disconnected.\n");
+                            outToClient2.flush();
+                        } catch(IOException ex) {}
+                    }
+                }
+            } catch(InterruptedException e) {
+                break;
+            }
+        }
+    }
+
+    private static void handleClient2() {
+        while(true) {
+            try {
+                Socket socket;
+                BufferedReader reader;
+                synchronized(client2Lock) {
+                    socket = client2Socket;
+                    reader = inFromClient2;
+                }
+
+                if(socket == null || reader == null) {
+                    Thread.sleep(100);
+                    continue;
+                }
+
+                String msg = reader.readLine();
+                if(msg == null) {
+                    System.out.println("bob disconnected (offline)");
+                    synchronized(client2Lock) {
+                        try { if(client2Socket != null) client2Socket.close(); } catch(IOException e) {}
+                        client2Socket = null;
+                        inFromClient2 = null;
+                        outToClient2 = null;
+                    }
+                    synchronized(client1Lock) {
+                        if(outToClient1 != null) {
+                            try {
+                                outToClient1.writeBytes("bob disconnected.\n");
+                                outToClient1.flush();
+                            } catch(IOException e) {}
+                        }
+                    }
+                    continue;
+                }
+
+                if(msg.startsWith("FILE:")) {
+                    String[] parts = msg.split(":");
+                    String filename = parts[1];
+                    int filesize = Integer.parseInt(parts[2]);
+
+                    synchronized(client1Lock) {
+                        if(outToClient1 != null && client1Socket != null) {
+                            outToClient1.writeBytes("FILE:" + filename + ":" + filesize + "\n");
+                            outToClient1.flush();
+
+                            byte[] buffer = new byte[4096];
+                            int read, total = 0;
+                            while(total < filesize) {
+                                read = socket.getInputStream().read(buffer, 0, Math.min(buffer.length, filesize - total));
+                                if(read == -1) break;
+                                client1Socket.getOutputStream().write(buffer, 0, read);
+                                total += read;
+                            }
+                            client1Socket.getOutputStream().flush();
+                            System.out.println("File transferred: " + filename);
+                        }
+                    }
+                } else {
+                    synchronized(client1Lock) {
+                        if(outToClient1 != null) {
+                            outToClient1.writeBytes("[bob]: " + msg + "\n");
+                            outToClient1.flush();
+                        }
+                    }
+                }
+            } catch(IOException e) {
+                System.out.println("bob disconnected (offline)");
+                synchronized(client2Lock) {
+                    try { if(client2Socket != null) client2Socket.close(); } catch(IOException ex) {}
+                    client2Socket = null;
+                    inFromClient2 = null;
+                    outToClient2 = null;
+                }
+                synchronized(client1Lock) {
+                    if(outToClient1 != null) {
+                        try {
+                            outToClient1.writeBytes("bob disconnected.\n");
+                            outToClient1.flush();
+                        } catch(IOException ex) {}
+                    }
+                }
+            } catch(InterruptedException e) {
+                break;
+            }
+        }
     }
 }
