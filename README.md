@@ -3,7 +3,7 @@
 ### Step 1: Compile
 ```bash
 cd src
-javac TCPServer.java TCPClient.java
+javac TCPServer.java TCPClient.java UDPClient.java UDPServer.java
 ```
 
 ### Step 2: Start the Server
@@ -13,12 +13,27 @@ cd src
 java TCPServer
 ```
 
+or
+
+```bash
+cd src
+java UDPServer
+```
+
 ### Step 3: Start First Client (Alice)
 Open a second terminal and run:
 ```bash
 cd src
 java TCPClient
 ```
+
+or
+
+```bash
+cd src
+java UDPClient
+```
+
 Login with:
 - Username: `alice`
 - Password: `pass1`
@@ -29,6 +44,14 @@ Open a third terminal and run:
 cd src
 java TCPClient
 ```
+
+or
+
+```bash
+cd src
+java UDPClient
+```
+
 Login with:
 - Username: `bob`
 - Password: `pass2`
