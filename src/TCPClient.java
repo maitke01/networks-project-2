@@ -26,11 +26,13 @@ class TCPClient {
         System.out.flush();
         String username = inFromUser.readLine();
         outToServer.writeBytes(username + '\n');
+        outToServer.flush();
 
         System.out.print(readPrompt(inFromServer));
         System.out.flush();
         String password = inFromUser.readLine();
         outToServer.writeBytes(password + '\n');
+        outToServer.flush();
 
         String loginResult = inFromServer.readLine();
         System.out.println(loginResult);
@@ -40,9 +42,11 @@ class TCPClient {
             return;
         }
 
-        String secondClientMsg = inFromServer.readLine();
-        if(secondClientMsg != null) {
-            System.out.println(secondClientMsg);
+        if(loginResult.contains("Waiting for second client")) {
+            String secondClientMsg = inFromServer.readLine();
+            if(secondClientMsg != null) {
+                System.out.println(secondClientMsg);
+            }
         }
 
         System.out.println("Type messages to chat. Type 'FILE:filename' to send a file.");
@@ -98,12 +102,14 @@ class TCPClient {
                         File file = new File(filename);
                         if(file.exists()) {
                             outToServer.writeBytes("FILE:" + file.getName() + ":" + file.length() + "\n");
+                            outToServer.flush();
                             FileInputStream fis = new FileInputStream(file);
                             byte[] buffer = new byte[4096];
                             int read;
                             while((read = fis.read(buffer)) > 0) {
                                 clientSocket.getOutputStream().write(buffer, 0, read);
                             }
+                            clientSocket.getOutputStream().flush();
                             fis.close();
                             System.out.println("File sent: " + filename);
                         } else {
@@ -111,6 +117,7 @@ class TCPClient {
                         }
                     } else {
                         outToServer.writeBytes(message + '\n');
+                        outToServer.flush();
                     }
                 }
             } catch (IOException e) {
