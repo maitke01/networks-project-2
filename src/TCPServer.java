@@ -23,7 +23,7 @@ class TCPServer {
     }
 
     public static void main(String argv[]) throws Exception {
-        ServerSocket welcomeSocket = new ServerSocket(6789);
+        ServerSocket welcomeSocket = new ServerSocket(6700);
         System.out.println("Server started. Waiting for clients...");
 
         // Thread to handle client1 (alice)

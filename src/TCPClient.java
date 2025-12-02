@@ -29,7 +29,7 @@ class TCPClient {
 
     public static void main(String[] argv) throws Exception {
         BufferedReader inFromUser = new BufferedReader(new InputStreamReader(System.in));
-        Socket clientSocket = new Socket("localhost", 6789);
+        Socket clientSocket = new Socket("localhost", 6700);
         DataOutputStream outToServer = new DataOutputStream(clientSocket.getOutputStream());
         DataInputStream inFromServer = new DataInputStream(clientSocket.getInputStream());
 
