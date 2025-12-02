@@ -4,12 +4,23 @@ import java.net.*;
 class TCPServer {
     private static volatile Socket client1Socket = null;
     private static volatile Socket client2Socket = null;
-    private static volatile BufferedReader inFromClient1 = null;
-    private static volatile BufferedReader inFromClient2 = null;
+    private static volatile DataInputStream inFromClient1 = null;
+    private static volatile DataInputStream inFromClient2 = null;
     private static volatile DataOutputStream outToClient1 = null;
     private static volatile DataOutputStream outToClient2 = null;
     private static final Object client1Lock = new Object();
     private static final Object client2Lock = new Object();
+
+    private static String readLine(DataInputStream in) throws IOException {
+        StringBuilder sb = new StringBuilder();
+        int ch;
+        while ((ch = in.read()) != -1) {
+            if (ch == '\n') break;
+            if (ch != '\r') sb.append((char) ch);
+        }
+        if (ch == -1 && sb.length() == 0) return null;
+        return sb.toString();
+    }
 
     public static void main(String argv[]) throws Exception {
         ServerSocket welcomeSocket = new ServerSocket(6789);
@@ -26,15 +37,15 @@ class TCPServer {
         // Main loop to accept connections
         while(true) {
             Socket newSocket = welcomeSocket.accept();
-            BufferedReader inFromNew = new BufferedReader(new InputStreamReader(newSocket.getInputStream()));
+            DataInputStream inFromNew = new DataInputStream(newSocket.getInputStream());
             DataOutputStream outToNew = new DataOutputStream(newSocket.getOutputStream());
 
             outToNew.writeBytes("Username: ");
             outToNew.flush();
-            String username = inFromNew.readLine();
+            String username = readLine(inFromNew);
             outToNew.writeBytes("Password: ");
             outToNew.flush();
-            String password = inFromNew.readLine();
+            String password = readLine(inFromNew);
 
             if(username.equals("alice") && password.equals("pass1")) {
                 synchronized(client1Lock) {
@@ -90,7 +101,7 @@ class TCPServer {
         while(true) {
             try {
                 Socket socket;
-                BufferedReader reader;
+                DataInputStream reader;
                 synchronized(client1Lock) {
                     socket = client1Socket;
                     reader = inFromClient1;
@@ -101,7 +112,7 @@ class TCPServer {
                     continue;
                 }
 
-                String msg = reader.readLine();
+                String msg = readLine(reader);
                 if(msg == null) {
                     System.out.println("alice disconnected (offline)");
                     synchronized(client1Lock) {
@@ -126,19 +137,15 @@ class TCPServer {
                     String filename = parts[1];
                     int filesize = Integer.parseInt(parts[2]);
 
+                    // Read the file bytes from client using the same DataInputStream
+                    byte[] fileData = new byte[filesize];
+                    reader.readFully(fileData);
+
                     synchronized(client2Lock) {
                         if(outToClient2 != null && client2Socket != null) {
                             outToClient2.writeBytes("FILE:" + filename + ":" + filesize + "\n");
                             outToClient2.flush();
-
-                            byte[] buffer = new byte[4096];
-                            int read, total = 0;
-                            while(total < filesize) {
-                                read = socket.getInputStream().read(buffer, 0, Math.min(buffer.length, filesize - total));
-                                if(read == -1) break;
-                                client2Socket.getOutputStream().write(buffer, 0, read);
-                                total += read;
-                            }
+                            client2Socket.getOutputStream().write(fileData);
                             client2Socket.getOutputStream().flush();
                             System.out.println("File transferred: " + filename);
                         }
@@ -177,7 +184,7 @@ class TCPServer {
         while(true) {
             try {
                 Socket socket;
-                BufferedReader reader;
+                DataInputStream reader;
                 synchronized(client2Lock) {
                     socket = client2Socket;
                     reader = inFromClient2;
@@ -188,7 +195,7 @@ class TCPServer {
                     continue;
                 }
 
-                String msg = reader.readLine();
+                String msg = readLine(reader);
                 if(msg == null) {
                     System.out.println("bob disconnected (offline)");
                     synchronized(client2Lock) {
@@ -213,19 +220,15 @@ class TCPServer {
                     String filename = parts[1];
                     int filesize = Integer.parseInt(parts[2]);
 
+                    // Read the file bytes from client using the same DataInputStream
+                    byte[] fileData = new byte[filesize];
+                    reader.readFully(fileData);
+
                     synchronized(client1Lock) {
                         if(outToClient1 != null && client1Socket != null) {
                             outToClient1.writeBytes("FILE:" + filename + ":" + filesize + "\n");
                             outToClient1.flush();
-
-                            byte[] buffer = new byte[4096];
-                            int read, total = 0;
-                            while(total < filesize) {
-                                read = socket.getInputStream().read(buffer, 0, Math.min(buffer.length, filesize - total));
-                                if(read == -1) break;
-                                client1Socket.getOutputStream().write(buffer, 0, read);
-                                total += read;
-                            }
+                            client1Socket.getOutputStream().write(fileData);
                             client1Socket.getOutputStream().flush();
                             System.out.println("File transferred: " + filename);
                         }

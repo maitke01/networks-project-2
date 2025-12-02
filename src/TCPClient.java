@@ -4,10 +4,10 @@ import java.net.*;
 class TCPClient {
     private static volatile boolean isRunning = true;
 
-    private static String readPrompt(BufferedReader reader) throws IOException {
+    private static String readPrompt(DataInputStream in) throws IOException {
         StringBuilder prompt = new StringBuilder();
         int ch;
-        while ((ch = reader.read()) != -1) {
+        while ((ch = in.read()) != -1) {
             prompt.append((char) ch);
             if (ch == ' ' && prompt.toString().endsWith(": ")) {
                 break;
@@ -16,11 +16,22 @@ class TCPClient {
         return prompt.toString();
     }
 
-    public static void main(String argv[]) throws Exception {
+    private static String readLine(DataInputStream in) throws IOException {
+        StringBuilder sb = new StringBuilder();
+        int ch;
+        while ((ch = in.read()) != -1) {
+            if (ch == '\n') break;
+            if (ch != '\r') sb.append((char) ch);
+        }
+        if (ch == -1 && sb.length() == 0) return null;
+        return sb.toString();
+    }
+
+    public static void main(String[] argv) throws Exception {
         BufferedReader inFromUser = new BufferedReader(new InputStreamReader(System.in));
         Socket clientSocket = new Socket("localhost", 6789);
         DataOutputStream outToServer = new DataOutputStream(clientSocket.getOutputStream());
-        BufferedReader inFromServer = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+        DataInputStream inFromServer = new DataInputStream(clientSocket.getInputStream());
 
         System.out.print(readPrompt(inFromServer));
         System.out.flush();
@@ -34,7 +45,7 @@ class TCPClient {
         outToServer.writeBytes(password + '\n');
         outToServer.flush();
 
-        String loginResult = inFromServer.readLine();
+        String loginResult = readLine(inFromServer);
         System.out.println(loginResult);
 
         if(loginResult.contains("failed")) {
@@ -43,7 +54,7 @@ class TCPClient {
         }
 
         if(loginResult.contains("Waiting for second client")) {
-            String secondClientMsg = inFromServer.readLine();
+            String secondClientMsg = readLine(inFromServer);
             if(secondClientMsg != null) {
                 System.out.println(secondClientMsg);
             }
@@ -54,7 +65,7 @@ class TCPClient {
         Thread serverListener = new Thread(() -> {
             try {
                 while(isRunning) {
-                    String incoming = inFromServer.readLine();
+                    String incoming = readLine(inFromServer);
                     if(incoming == null) {
                         System.out.println("Connection closed by server");
                         isRunning = false;
@@ -67,15 +78,10 @@ class TCPClient {
                         int filesize = Integer.parseInt(parts[2]);
                         System.out.println("Receiving file: " + filename);
 
-                        byte[] buffer = new byte[4096];
-                        int read, total = 0;
-                        String fileContent = "";
-                        while(total < filesize) {
-                            read = clientSocket.getInputStream().read(buffer, 0, Math.min(buffer.length, filesize - total));
-                            if(read == -1) break;
-                            fileContent += new String(buffer, 0, read);
-                            total += read;
-                        }
+                        byte[] fileData = new byte[filesize];
+                        inFromServer.readFully(fileData);
+                        String fileContent = new String(fileData);
+                        System.out.println("File received: " + filename);
                         System.out.println("File content: " + fileContent);
                     } else {
                         System.out.println(incoming);
