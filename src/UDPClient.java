@@ -5,7 +5,7 @@ class UDPClient {
     private static volatile boolean isRunning = true;
     private static DatagramSocket clientSocket;
     private static InetAddress serverAddress;
-    private static int serverPort = 9876;
+    private static int serverPort = 6700;
 
     public static void main(String args[]) throws Exception {
         BufferedReader inFromUser = new BufferedReader(new InputStreamReader(System.in));

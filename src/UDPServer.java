@@ -8,7 +8,7 @@ class UDPServer {
     private static String user1, user2;
 
     public static void main(String args[]) throws Exception {
-        serverSocket = new DatagramSocket(9876);
+        serverSocket = new DatagramSocket(6700);
         System.out.println("Server started. Waiting for clients...");
 
         byte[] receiveData = new byte[65507];
